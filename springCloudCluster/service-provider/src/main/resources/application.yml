@@ -1,0 +1,9 @@
+server:
+  port: 7002
+spring:
+  application:
+    name: service-provider
+eureka:
+  client:
+    service-url:
+     defaultZone:  http://server7998:7998/eureka/,http://server7999:7999/eureka/

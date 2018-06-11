@@ -1,0 +1,18 @@
+app:
+  ip-address: 192.168.90.151
+server:
+  port: 7998
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://server7999:7999/eureka/
+    fetch-registry: true
+    register-with-eureka: true
+  instance:
+    hostname: server7998
+    prefer-ip-address: true
+    ip-address: ${app.ip-address}
+    appname: eureka-server
+spring:
+  application:
+    name: eureka-server
