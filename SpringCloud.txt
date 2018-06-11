@@ -1,0 +1,149 @@
+1、单机版Eureka配置
+    1）服务注册中心
+        server:
+          port: 8888
+        eureka:
+          client:
+            serviceUrl:
+              defaultZone: http://localhost:8888/eureka/
+            fetch-registry: false #不需要从注册中心检索自己
+            register-with-eureka: false #不需要向注册中心注册自己
+        spring:
+          application:
+            name: eureka-server
+
+    2）服务提供者
+        server:
+          port: 8889
+        spring:
+          application:
+            name: service-provider
+        eureka:
+          client:
+            service-url:
+             defaultZone:  http://localhost:8888/eureka/ #地址与注册中心的地址一致
+    3）服务消费者
+        server:
+          port: 8080
+        eureka:
+          client:
+            service-url:
+             defaultZone:  http://localhost:8888/eureka/ #地址与注册中心的地址一致
+        spring:
+          application:
+            name: service-consumer
+
+    注意：1）服务提供者和服务消费都都需要引用spring-boot-starter-web依赖，基于Restful api接口的形式来调用服务
+
+2、集群版Eureka配置
+    1）服务注册中心（需要配置多个）
+        注册中心1：
+            app:
+              ip-address: 192.168.90.26
+            server:
+              port: 8888
+            eureka:
+              client:
+                serviceUrl:
+                  defaultZone: http://server8887:8887/eureka/
+                fetch-registry: true
+                register-with-eureka: true
+              instance:
+                hostname: server8888
+                prefer-ip-address: true
+                ip-address: ${app.ip-address}
+                appname: eureka-server
+            spring:
+              application:
+                name: eureka-server
+        注册中心2：
+            app:
+              ip-address: 192.168.90.26
+            server:
+              port: 8887
+            eureka:
+              client:
+                serviceUrl:
+                  defaultZone: http://server8888:8888/eureka/
+                register-with-eureka: true
+                fetch-registry: true
+              instance:
+                hostname: server8887
+                ip-address: ${app.ip-address}
+                prefer-ip-address: true
+                appname: eureka-server
+            spring:
+              application:
+                name: eureka-server
+    2）服务提供者
+        server:
+          port: 8889
+        spring:
+          application:
+            name: service-provider
+        eureka:
+          client:
+            service-url:
+             defaultZone:  http://server8888:8888/eureka/,http://server8887:8887/eureka/ #配置所有的注册中心
+    3）服务消费者
+        server:
+          port: 8080
+        eureka:
+          client:
+            service-url:
+             defaultZone:  http://server8888:8888/eureka/,http://server8887:8887/eureka/ #配置所有的注册中心
+        spring:
+          application:
+            name: service-consumer
+
+    注意：1）服务提供者和服务消费都都需要引用spring-boot-starter-web依赖，基于Restful api接口的形式来调用服务
+        2）集群版的服务注册中心的配置不能使用localhost，也不要使用ip地址来配置defaultZone，而需要配置host文件来设置
+            127.0.0.1 server8887
+            127.0.0.1 server8888
+        3）服务注册中心是采取相互注册的形式，如注册中心1中需要配置注册中心2，注册中心3……等的defaultZone
+        4）需要设置register-with-eureka为true，fetch-registry为true
+        5）所有注册中心的spring.application.name需要一致或eureka.instance.appname一致
+
+3、feign的使用
+    feign集成了Ribbon负载均衡的功能和Hystrix熔断器的功能
+
+    1）启动类上增加@EnableFeignClients注解
+    2）增加与服务提供方一模一样的接口（提供方的副本，最终调用的仍然是提供方）
+        @Service
+        // @FeignClient 中的name，如果是引用同一个服务，多个接口中的name可以一样
+        @FeignClient(name = "service-provider", fallback = HelloServiceFallback.class)
+        public interface HelloService {
+
+            // 与服务提供者中的mapping一致
+            @GetMapping("/hello/say/{name}")
+            String say(@PathVariable("name") String name);
+        }
+    3）增加熔断器类，实现服务提供方的接口
+        @Component
+        public class HelloServiceFallback implements HelloService, HiService {
+            @Override
+            public String say(String name) {
+                return "request error!";
+            }
+        }
+    4）在yml配置文件中开启Hystrix熔断器功能
+        feign:
+          hystrix:
+            enabled: true
+
+4、zuul(路由)
+    api gateway api网关
+    restful api url  ->  服务
+    明确地指明哪个url对应于哪个服务，直接通过url调用到对应的服务
+
+    zuul:
+      routes:
+        hello-service:
+          path: /api-hello/**
+          serviceId: service-provider
+
+    注意：/**表示/后面可以匹配任何内容
+    /api-hello/hello/say/aa
+    ->
+    service-provider中的有/hello/say/{name}的这个url地址的方法
+
